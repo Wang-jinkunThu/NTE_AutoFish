@@ -20,10 +20,13 @@ class FishBar:
         self.keyboard = Keyboard()
         self.current_key = None
 
-        self.green_lower = np.clip(np.array(self.GREEN_BAR) - 10, 0, 255).astype(np.uint8)
-        self.green_upper = np.clip(np.array(self.GREEN_BAR) + 10, 0, 255).astype(np.uint8)
-        self.yellow_lower = np.clip(np.array(self.YELLOW_CURSOR) - 10, 0, 255).astype(np.uint8)
-        self.yellow_upper = np.clip(np.array(self.YELLOW_CURSOR) + 10, 0, 255).astype(np.uint8)
+        self.green_lower = np.clip(np.array(self.GREEN_BAR) - 30, 0, 255).astype(np.uint8)
+        self.green_upper = np.clip(np.array(self.GREEN_BAR) + 30, 0, 255).astype(np.uint8)
+        self.yellow_lower = np.clip(np.array(self.YELLOW_CURSOR) - 30, 0, 255).astype(np.uint8)
+        self.yellow_upper = np.clip(np.array(self.YELLOW_CURSOR) + 30, 0, 255).astype(np.uint8)
+
+        self._last_save_times = []
+        self._prev_roi = None
 
     def set_rect(self, base_pos):
         x, y = base_pos
@@ -34,34 +37,46 @@ class FishBar:
     def save_debug_image(self, screenshot):
         if not hasattr(self, 'rect'):
             return
-            
-        x, y, w, h = self.rect
-        debug_img = screenshot.copy()
-        
-        roi = screenshot[y:y+h, x:x+w]
-        cv2.rectangle(debug_img, (x, y), (x + w, y + h), (255, 0, 0), 2)
-        
-        green_bar = self._get_green_bar(roi, x)
-        cursor = self._get_yellow_cursor(roi, x)
-        
-        if green_bar:
-            left, right = green_bar
-            cv2.line(debug_img, (left, y), (left, y + h), (0, 255, 0), 2)
-            cv2.line(debug_img, (right, y), (right, y + h), (0, 255, 0), 2)
-            
-            overlay = debug_img.copy()
-            cv2.rectangle(overlay, (left, y), (right, y + h), (0, 255, 0), -1)
-            cv2.addWeighted(overlay, 0.3, debug_img, 0.7, 0, debug_img)
-            
-        if cursor:
-            cv2.line(debug_img, (cursor, y - 10), (cursor, y + h + 10), (0, 255, 255), 2)
-            
-        os.makedirs('screenshots', exist_ok=True)
-        timestamp = int(time.time() * 1000)
-        filename = f"screenshots/debug_fish_bar_{timestamp}.png"
-        cv2.imwrite(filename, debug_img)
-        logger.debug(f"Saved debug image: {filename}")
-    
+
+        now = time.time()
+        self._last_save_times = [t for t in self._last_save_times if now - t < 1]
+        if self._last_save_times and now - self._last_save_times[-1] < 0.5:
+            return
+        self._last_save_times.append(now)
+
+        try:
+            x, y, w, h = self.rect
+            debug_img = screenshot.copy()
+
+            roi = screenshot[y:y+h, x:x+w]
+            cv2.rectangle(debug_img, (x, y), (x + w, y + h), (255, 0, 0), 2)
+
+            green_bar = self._get_green_bar(roi, x)
+            cursor = self._get_yellow_cursor(roi, x)
+
+            if green_bar:
+                left, right = green_bar
+                cv2.line(debug_img, (left, y), (left, y + h), (0, 255, 0), 2)
+                cv2.line(debug_img, (right, y), (right, y + h), (0, 255, 0), 2)
+
+                overlay = debug_img.copy()
+                cv2.rectangle(overlay, (left, y), (right, y + h), (0, 255, 0), -1)
+                cv2.addWeighted(overlay, 0.3, debug_img, 0.7, 0, debug_img)
+
+            if cursor:
+                cv2.line(debug_img, (cursor, y - 10), (cursor, y + h + 10), (0, 255, 255), 2)
+
+            save_dir = os.path.abspath('screenshots')
+            os.makedirs(save_dir, exist_ok=True)
+            timestamp = int(time.time() * 1000)
+            filepath = os.path.join(save_dir, f"debug_fish_bar_{timestamp}.png")
+            if not cv2.imwrite(filepath, debug_img):
+                logger.error(f"Failed to save debug image: {filepath}")
+            else:
+                logger.info(f"Saved debug image: {filepath}")
+        except Exception as e:
+            logger.error(f"Error saving debug image: {e}")
+
     def _get_green_bar(self, roi, x_offset):
         mask = cv2.inRange(roi, self.green_lower, self.green_upper)
         cols = np.where(np.any(mask, axis=0))[0]
@@ -73,15 +88,22 @@ class FishBar:
 
     def _get_yellow_cursor(self, roi, x_offset):
         mask = cv2.inRange(roi, self.yellow_lower, self.yellow_upper)
-        cols = np.where(np.any(mask, axis=0))[0]
-        if cols.size > 0:
-            return int((cols[0] + cols[-1]) // 2 + x_offset)
-        return None
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if not contours:
+            return None
+        # 过滤掉面积太小的噪点
+        candidates = [c for c in contours if cv2.contourArea(c) >= 5]
+        if not candidates:
+            return None
+        # 取最窄的轮廓（光标是细竖线，背景是宽区域）
+        best = min(candidates, key=lambda c: cv2.boundingRect(c)[2])
+        x, _, w, _ = cv2.boundingRect(best)
+        return int(x + w // 2 + x_offset)
 
     def _press(self, key):
         if self.current_key == key:
             return
-        
+
         self._release_all()
         if key:
             logger.debug(f"Pressing '{key}'")
@@ -100,13 +122,13 @@ class FishBar:
         for frame in self.controller.loop(interval=0):
             roi = frame[y:y+h, x:x+w]
             green_bar = self._get_green_bar(roi, x)
-            
+
             if green_bar is None:
                 missing_green_bar_count += 1
-                if missing_green_bar_count > 10: # 连续 10 帧检测不到绿条才认为结束
+                if missing_green_bar_count > 10:
                     break
                 continue
-            
+
             missing_green_bar_count = 0
             left, right = green_bar
             cursor = self._get_yellow_cursor(roi, x)
@@ -116,6 +138,7 @@ class FishBar:
 
             if config.SAVE_FISH_BAR_DEBUG_IMAGE:
                 self.save_debug_image(frame)
+
             if cursor < left:
                 self._press('d')
             elif cursor > right:

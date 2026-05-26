@@ -1,6 +1,6 @@
 @echo off
 
-set PYTHON=".\.venv\Scripts\python.exe"
+set PYTHON="D:\Anaconda\envs\N2E\python.exe"
 
 net session >nul 2>&1
 if %errorlevel% neq 0 (
