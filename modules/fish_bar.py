@@ -20,8 +20,8 @@ class FishBar:
         self.keyboard = Keyboard()
         self.current_key = None
 
-        self.green_lower = np.clip(np.array(self.GREEN_BAR) - 30, 0, 255).astype(np.uint8)
-        self.green_upper = np.clip(np.array(self.GREEN_BAR) + 30, 0, 255).astype(np.uint8)
+        self.green_lower = np.clip(np.array(self.GREEN_BAR) - 20, 0, 255).astype(np.uint8)
+        self.green_upper = np.clip(np.array(self.GREEN_BAR) + 20, 0, 255).astype(np.uint8)
         self.yellow_lower = np.clip(np.array(self.YELLOW_CURSOR) - 30, 0, 255).astype(np.uint8)
         self.yellow_upper = np.clip(np.array(self.YELLOW_CURSOR) + 30, 0, 255).astype(np.uint8)
 
