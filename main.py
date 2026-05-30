@@ -108,7 +108,8 @@ def handle_stuck():
             controller.mouse_click(START.pos)
             continue
         
-        if time.time() - start_time >= 10:
+        #TODO: 应该是不停服更新导致钓鱼进程终止,从而直接被踢掉了,要添加个功能,在钓鱼界面以外的时候尝试按F进入钓鱼界面
+        if time.time() - start_time >= 20:
             logger.error("Failed to handle stuck.")
             raise RuntimeError("Unrecoverable error happened. Request for human takeover.")
             
