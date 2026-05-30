@@ -130,8 +130,7 @@ def main():
         
         if time.time() - last_time >= 20:
             logger.warning("No fish icon found for 20 seconds.")
-            handle_event()
-            handle_stuck()
+            handle_stuck() if not handle_event() else None
             last_time = time.time()
                 
 
