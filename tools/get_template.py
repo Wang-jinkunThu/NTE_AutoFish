@@ -75,5 +75,6 @@ def get_template(image_path):
 if __name__ == '__main__':
     if len(sys.argv) < 2:
         print("Usage: python tools/get_template.py <image_path>")
+        print("Drag to select the template area, then press ENTER to save or ESC to cancel.")
         sys.exit(1)
     get_template(sys.argv[1])
