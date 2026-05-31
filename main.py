@@ -128,10 +128,10 @@ def main():
     logger.info("Hook found, starting main loop...")
     last_time = time.time()
     for frame in controller.loop():
-        default_page_flag = DEFAULT_PAGE.match(frame)
+        is_in_default_page = DEFAULT_PAGE.match(frame)
 
         keyboard.click('f')
-        controller.mouse_click() if not default_page_flag else None
+        controller.mouse_click() if not is_in_default_page else logger.error("In default page, maybe failed to fish.")
 
         if FISH_ICON.match(frame):
             fish_bar.set_rect(FISH_ICON.pos)
